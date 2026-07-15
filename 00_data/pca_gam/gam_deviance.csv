@@ -1,0 +1,16 @@
+"model","n","gam_dev_explained_pct","low_density_pct"
+"esmif_score",10142,52.2,83.9
+"solublempnn_score",10148,50.3,83.9
+"caliby_score",10148,47.5,83.9
+"AcidophileMPNN_020_score",10148,45.2,83.9
+"mif_score",10145,44.2,83.9
+"ProteinMPNN_v020_score",10148,43.8,83.9
+"AlkalineMPNN_020_score",10148,43.7,83.9
+"triflow_score",10147,42.6,83.9
+"esm3_struct_cond_score",10127,40.2,84
+"esm3_seq_only_score",10127,40.1,84
+"mifst_score",10145,22,83.9
+"carp_640M_score",10148,18.1,83.9
+"protgpt2_score",10148,11.9,83.9
+"ESM2_15B_pppl_score",10078,8.7,83.9
+"progen2_XL_score",10041,8.7,84.4

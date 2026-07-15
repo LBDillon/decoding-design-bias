@@ -1,0 +1,4 @@
+"pair","centroid_distance","bhattacharyya_overlap"
+"Eukaryota-vs-Bacteria",1.52868102855972,0.836708715346961
+"Eukaryota-vs-Archaea",0.838538182269003,0.907304402809965
+"Bacteria-vs-Archaea",0.788292744220148,0.945227264505443

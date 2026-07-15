@@ -1,0 +1,40 @@
+name: decoding_bias
+channels:
+  - conda-forge
+dependencies:
+  # Python core
+  - python=3.10
+  - pip
+
+  # Data & statistics
+  - pandas>=1.5
+  - numpy>=1.23
+  - scipy>=1.9
+  - statsmodels>=0.13
+  - scikit-learn>=1.1
+
+  # Visualisation
+  - matplotlib>=3.6
+  - seaborn>=0.12
+  - plotly>=5.0          # 03_elo interactive figures
+
+  # Biology
+  - biopython>=1.80
+
+  # Utilities
+  - tqdm
+  - pyyaml
+  - requests
+
+  # R for the PCA/GAM landscapes (Fig 3, SI S6) - see environment-R.md
+  - r-base>=4.2
+  - r-mgcv
+  - r-tidyverse
+  - r-ggrepel
+  - r-patchwork
+  - r-viridis
+  - r-mass
+
+  # Notebooks
+  - jupyter
+  - r-irkernel

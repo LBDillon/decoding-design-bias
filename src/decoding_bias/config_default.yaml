@@ -1,0 +1,38 @@
+# Default configuration for the decoding-design-bias reproducibility pipeline.
+# Dillon, Maiwald & Crook (2025).
+#
+# Paths are repo-relative unless absolute. Override any value with:
+#   * a user YAML passed to `decoding-bias --config my.yaml ...`
+#   * an environment variable  DECODING_BIAS_<SECTION>_<KEY>  (upper-snake), or
+#   * DECODING_BIAS_ROOT to relocate the repository root, and
+#   * per-command flags (--data, --output-dir).
+#
+# The scientific invariants (feature lists, model panels, domains) live in
+# decoding_bias/catalog.py, NOT here, so they cannot drift via config edits.
+
+paths:
+  # The single shipped reproducibility anchor (tracked in git).
+  analysis_table: 00_data/data/decoding_bias_15_07_26.csv
+  # Where every stage writes its outputs.
+  output_dir: results
+  # --- external inputs, NOT shipped (blank => that stage is blocked) ---
+  # Species taxonomy (phylum/division, class) for the Fig 2B phylum heatmap.
+  metadata_table: ""            # e.g. 00_data/data/main_plus_r2_r3_metadata_v12.csv
+  # Directory holding designs_features.csv, wt_features.csv, designs_ph_features.csv.
+  design_dir: ""
+  # AlphaFold/PDB structures and folding outputs.
+  structures_dir: ""
+  # Model checkpoints for scoring / fine-tuning.
+  weights_dir: ""
+
+elo:
+  n_permutations: 50           # random match orderings
+  protein_column: protein_family
+  k_factor: 32
+  baseline: 1500
+
+variance_decomposition:
+  n_features: 14               # pruned biophysical set (see catalog.BIOPHYS_14)
+
+property_importance:
+  min_rows: 200                # per-model complete-case minimum
