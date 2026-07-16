@@ -1,12 +1,10 @@
 """Fine-tuning surface-steer analysis (paper Table S22 / Fig S10).
 
 The full fine-tuning + generation pipeline (`decoding_bias/finetune/`) needs GPU +
-model weights and is blocked here. But the matched surface-only steer per target -
-the source of Table S22 - is a small deposited artifact
+model weights. But the matched surface-only steer per target:
 (`00_data/finetune/surface_shift_matched.csv`, from the local ESM2-35M generation
 run). Table S22 is a simple per-model aggregation of its `case_minus_control` column
-(AlkSec − neutralophile control). Reproduces the paper exactly:
-ProteinMPNN −0.232 ± 0.037 (10/10 acidic); ESM2-35M −0.075 ± 0.021 (9/10).
+(AlkSec − neutralophile control)
 """
 from __future__ import annotations
 
