@@ -1,8 +1,5 @@
 """decoding-bias command-line interface.
 
-One entry point for the whole reproducibility pipeline. Each subcommand is a
-scientific stage, not a per-figure or per-model script:
-
   dataset      validate the analysis table + reproduce the composition (Table 7)
   score        run/import model likelihood scores            [needs weights]
   variance     score-variance decomposition (Table 1/2, SI Fig S2, Tables S9/S10)
