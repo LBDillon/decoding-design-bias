@@ -1,6 +1,5 @@
 """Taxonomic-preference Elo analysis (paper Fig 2, Table 3; SI Fig S1, Tables S5-S8).
 
-The Elo algorithm lives in the reusable, seeded (deterministic) `elo_rating` module;
 `elo_figures` and `elo_paper_figures` build the interactive and publication panels.
 This module orchestrates the runs against a `Config`.
 
