@@ -1,7 +1,4 @@
 """
-Regenerate the ELO notebook's publication-style figures for an arbitrary
-set of models. Adapted from notebooks/ELO_analysis.ipynb cells 13-14.
-
 Produces in OUTPUT_DIR/figures/:
     - <model>_elo_clean_violin.html : per-model violin of (rating - baseline) by domain
     - elo_heatmap_normalized.html   : interactive heatmap with grouping/normalization dropdowns
