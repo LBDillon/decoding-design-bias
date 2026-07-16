@@ -1,9 +1,4 @@
 """Authoritative scientific catalog: features, models, domains, palettes.
-
-Single source of truth for the definitions that must not drift between stages: the
-pruned 14-feature biophysical set (9 sequence + 5 structure), the model panels and
-their score columns, the three taxonomic domains, and the shared palettes. List and
-dict ordering is significant, as it fixes the column order of the supplementary tables.
 """
 from __future__ import annotations
 
@@ -13,7 +8,7 @@ from __future__ import annotations
 ID_COL = "Entry"
 SPECIES_COL = "species"
 DOMAIN_COL = "domain"
-FAMILY_COL = "protein_family"          # canonical 281-family grouping (paper tab:elo)
+FAMILY_COL = "protein_family"          #  281-family grouping (paper tab:elo)
 BROAD_FUNCTION_COL = "broad_function"
 
 DOMAINS = ["Archaea", "Bacteria", "Eukaryota"]
@@ -50,7 +45,7 @@ assert len(BIOPHYS_14) == 14
 DROPPED_COLLINEAR = ["charge_at_ph7", "small_residue_fraction"]
 
 # --------------------------------------------------------------------------- #
-# Model panels (pretty name -> score column). Ordering is load-bearing: it sets
+# Model panels (pretty name -> score column). Ordering  sets
 # the column order of the SI wide tables and the bar-chart ordering.
 # --------------------------------------------------------------------------- #
 # type is the architecture class used to colour/order the variance-decomposition
