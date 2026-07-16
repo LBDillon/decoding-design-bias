@@ -2,8 +2,7 @@
 
 Analysis code for *Decoding the physicochemical basis of taxonomy preferences in
 protein design models* (Dillon, Maiwald, and Crook). The repository is a single
-installable package with one command-line interface that drives every stage of the
-analysis reproducible from the deposited data.
+installable package with one command-line interface.
 
 ## Installation
 
@@ -15,8 +14,7 @@ decoding-bias verify
 ```
 
 `decoding-bias verify` re-runs each stage that is reproducible from the deposited data
-and compares the result against the reference values in `tests/reference/`. A clean
-checkout reproduces those references exactly (differences of order 1e-16 or smaller).
+and compares the result against the reference values in `tests/reference/`.
 
 ## Command-line interface
 
@@ -28,7 +26,7 @@ writes to `results/<stage>/`.
 | `decoding-bias dataset`    | Analysis-table composition | Table 7 | Deposited data |
 | `decoding-bias variance`   | Score-variance decomposition | Tables 1-2; SI Figs S2-S5; Tables S9, S10, S13 | Deposited data |
 | `decoding-bias taxonomy`   | Species Elo taxonomy preference | Figure 2; Table 3; SI Tables S5-S8 | Deposited data (Fig 2B panel requires the taxonomy metadata) |
-| `decoding-bias pca`        | Biophysical PCA plane and tables | Figure 3A-B; Table S14; compactness; Table S15 | Deposited data (GAM landscapes, Fig 3C, require R and mgcv) |
+| `decoding-bias pca`        | Biophysical PCA and tables | Figure 3A-B; Table S14; compactness; Table S15 | Deposited data (GAM landscapes, Fig 3C, require R and mgcv) |
 | `decoding-bias importance` | Property-to-score importance | SI Fig S9; Tables S16-S18 | Deposited data |
 | `decoding-bias finetune`   | Fine-tuning surface steer | Table S22 | Deposited data (full arms require fine-tuned weights) |
 | `decoding-bias design`     | Designed-sequence analysis | Figure 4; Tables 4, S20, S21 | Design feature tables (`design_dir`) |
@@ -40,10 +38,9 @@ writes to `results/<stage>/`.
 Run `decoding-bias <stage> --help` for options, for example `taxonomy --all-variants`,
 `variance --no-figures`, or `verify --full` (which includes the Elo stage).
 
-Stages whose requirements are not part of the deposit - model weights, AlphaFold or
-RCSB structures, or the design feature tables - report the exact input they require and
-the command they run once it is provided; they do not produce substitute results. Their
-code is retained in the package so that each method is fully documented. External inputs
+Stages whose requirements are not part of the deposit (model weights, AlphaFold or
+RCSB structures, or the design feature tables) report the exact input they require and
+the command they run once it is provided. External inputs
 are supplied through `paths.*` in a configuration file or the corresponding
 `DECODING_BIAS_*` environment variables.
 
@@ -76,8 +73,8 @@ as a status table.
 ## Data
 
 The deposited analysis table `00_data/data/decoding_bias_15_07_26.csv` (10,148 proteins;
-the fourteen-model cohort with ProGen2-XL and the fine-tuned `-020` models, the sixteen
-biophysical features, `avg_plddt`, and `deepstabp_tm`) is the canonical source for every
+the fourteen-model cohort and the fine-tuned `-020` models, the sixteen
+biophysical features, `avg_plddt`, and `deepstabp_tm`) is the main source for every
 reported value. Larger metadata, protein structures, model weights, and folding outputs
 are provided through the data-availability statement and configured through `paths.*`.
 
