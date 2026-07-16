@@ -13,7 +13,7 @@ Two independent analyses, each run when its inputs are present in `paths.design_
                designs_ph_features.csv (fine-tuned arms), and either a committed
                _uniprot_features_cache.json or internet (fetches from rest.uniprot.org).
 
-Design ΔTm (DeepStabP) is separate and still needs its own predicted-Tm input.
+Design ΔTm (DeepStabP) is separate
 """
 from __future__ import annotations
 
