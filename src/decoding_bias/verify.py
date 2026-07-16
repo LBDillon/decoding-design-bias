@@ -1,5 +1,5 @@
-"""Verification harness: re-run the reproducible stages and compare against the
-committed reference artifacts in tests/reference/, plus a few headline paper
+"""re-run the reproducible stages and compare against the
+committed reference artifacts in tests/reference/, plus a few paper
 numbers. Backs `decoding-bias verify`.
 """
 from __future__ import annotations
