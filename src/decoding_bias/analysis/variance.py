@@ -10,8 +10,6 @@ Method:
     on each predictor block (LowDim PC1+PC2, Biophys, Family, Species, and unions),
     nested partial-R^2 F-tests, species attenuation, and the Simpson's-paradox
     per-species effect retention check.
-
-No RNG: fully deterministic.
 """
 from __future__ import annotations
 
@@ -39,7 +37,7 @@ PREDICTOR_SETS = [
 
 
 # --------------------------------------------------------------------------- #
-# Linear-algebra kernels (verbatim from score_variance_decomposition.py)
+# Linear-algebra kernels 
 # --------------------------------------------------------------------------- #
 def make_Q(X):
     """Orthonormal basis (incl. intercept) for a design matrix."""
