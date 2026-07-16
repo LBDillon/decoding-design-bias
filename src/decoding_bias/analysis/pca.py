@@ -2,18 +2,13 @@
 
 The Fig 3C / S8 GAM *landscapes* and the Table S15 GAM deviance-explained are
 produced by the R/mgcv notebook (04_pca_gam/PCA_paper_figures.ipynb +
-pca_corrections.R) because mgcv has no faithful Python equivalent; this module
-covers the Python-computable pieces:
+pca_corrections.R)this module covers the Python-computable pieces:
 
   * the 14-feature PCA (same SVD of standardised features as the variance
     decomposition), its loadings (Table S14) and explained-variance ratios
     (PC1 23.4%, PC2 16.7%),
   * per-domain PC1/PC2 means, 1-SD ellipse areas, and pairwise Bhattacharyya
     overlaps (the compactness table).
-
-PC signs are oriented to the paper's convention (Table S14) so the loadings and
-domain means carry the reported signs; PCA sign is otherwise arbitrary.
-Deterministic (no RNG).
 """
 from __future__ import annotations
 
