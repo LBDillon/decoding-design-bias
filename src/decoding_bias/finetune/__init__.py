@@ -1,1 +1,1 @@
-"""alkmpnn: alkaliphile-secretome ProteinMPNN fine-tuning (utils, train, evaluate, select)."""
+"""Fine-tuning provenance: ProteinMPNN and ESM2-35M secretome arms. See ARCHIVE_MAP.md."""

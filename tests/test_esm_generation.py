@@ -3,8 +3,9 @@ Run: python test_esm_generation.py   (or via pytest)
 """
 import numpy as np
 
-from esm_generation import (CANONICAL_AA, aa_probs_from_logits, acidic_propensity,
-                            sample_from_probs, iterative_infill)
+from decoding_bias.finetune.esm_generation import (
+    CANONICAL_AA, aa_probs_from_logits, acidic_propensity,
+    sample_from_probs, iterative_infill)
 
 
 def test_aa_probs_from_logits_selects_and_renormalizes():
