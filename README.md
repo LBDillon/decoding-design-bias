@@ -1,97 +1,75 @@
-# Decoding design bias
+# Decoding design bias: reviewer reproduction
 
-Analysis code for *Decoding the physicochemical basis of taxonomy preferences in
-protein design models* (Dillon, Maiwald, and Crook). The repository is a single
-installable package with one command-line interface.
+This repository contains an analysis-ready reproduction for
+*Decoding the physicochemical basis of taxonomy preferences in protein design
+models* (Dillon, Maiwald, and Crook).
 
-## Installation
+The bundle starts from the row-level score, feature, design, and fine-tuning
+tables used by the paper. It recomputes the main statistical results, regenerates
+compact figures, and compares the numbers with committed reference outputs. Model
+training, likelihood scoring, sequence generation, and structure prediction are
+intentionally outside the reviewer path because they require large checkpoints or
+external services and are not needed to audit the paper's analyses.
+
+## Run it
+
+With conda (includes R/mgcv for the full reproduction):
 
 ```bash
 conda env create -f environment.yaml
 conda activate decoding_bias
 pip install -e .
-decoding-bias verify
+decoding-bias reproduce
 ```
 
-`decoding-bias verify` re-runs each stage that is reproducible from the deposited data
-and compares the result against the reference values in `tests/reference/`.
-
-## Command-line interface
-
-The pipeline is a single command with one subcommand per scientific stage. Each stage
-writes to `results/<stage>/`.
-
-| Command | Stage | Paper outputs | Requirements |
-|---|---|---|---|
-| `decoding-bias dataset`    | Analysis-table composition | Table 7 | Deposited data |
-| `decoding-bias variance`   | Score-variance decomposition | Tables 1-2; SI Figs S2-S5; Tables S9, S10, S13 | Deposited data |
-| `decoding-bias taxonomy`   | Species Elo taxonomy preference | Figure 2; Table 3; SI Tables S5-S8 | Deposited data (Fig 2B panel requires the taxonomy metadata) |
-| `decoding-bias pca`        | Biophysical PCA and tables | Figure 3A-B; Table S14; compactness; Table S15 | Deposited data (GAM landscapes, Fig 3C, require R and mgcv) |
-| `decoding-bias importance` | Property-to-score importance | SI Fig S9; Tables S16-S18 | Deposited data |
-| `decoding-bias finetune`   | Fine-tuning surface steer | Table S22 | Deposited data (full arms require fine-tuned weights) |
-| `decoding-bias design`     | Designed-sequence analysis | Figure 4; Tables 4, S20, S21 | Design feature tables (`design_dir`) |
-| `decoding-bias pdb-cohort` | Experimental-PDB cohort | SI Figs S6-S7; Tables S11-S12 | RCSB structures |
-| `decoding-bias score`      | Model likelihood scoring | Score columns | Model weights |
-| `decoding-bias figures`    | Status of every paper output | - | - |
-| `decoding-bias verify`     | Regression check against `tests/reference/` | - | Deposited data |
-
-Run `decoding-bias <stage> --help` for options, for example `taxonomy --all-variants`,
-`variance --no-figures`, or `verify --full` (which includes the Elo stage).
-
-Stages whose requirements are not part of the deposit (model weights, AlphaFold or
-RCSB structures, or the design feature tables) report the exact input they require and
-the command they run once it is provided. External inputs
-are supplied through `paths.*` in a configuration file or the corresponding
-`DECODING_BIAS_*` environment variables.
-
-## Repository layout
-
-```
-src/decoding_bias/                    installable package (import decoding_bias)
-  catalog.py                          scientific invariants: feature set, model panels, domains
-  config.py, config_default.yaml      path and parameter resolution
-  data.py                             analysis-table loading and composition
-  cli.py                              the decoding-bias command
-  manifest.py                         map from each paper output to its stage and command
-  verify.py                           regression harness against tests/reference/
-  plotting.py                         shared figure code
-  analysis/                           reproducible stages: variance, importance, elo, pca,
-                                      design, finetune (with elo_rating/elo_figures)
-  gam/                                R and mgcv GAM landscapes and design ellipses
-  dataset/ scoring/ design/           stage code that requires external inputs
-  finetune/ pdb_cohort/ stages/
-  features/                           sequence, structural, and surface feature extraction
-00_data/data/decoding_bias_15_07_26.csv   the deposited analysis table
-00_data/finetune/, 00_data/pca_gam/       small deposited outputs used by the finetune and pca stages
-notebooks/                            environment-bound notebooks (scoring, PCA/GAM in R, design, fine-tuning)
-tests/                                reference values and equivalence tests
-```
-
-The paper-output map is `src/decoding_bias/manifest.py`; `decoding-bias figures` prints it
-as a status table.
-
-## Data
-
-The deposited analysis table `00_data/data/decoding_bias_15_07_26.csv` (10,148 proteins;
-the fourteen-model cohort and the fine-tuned `-020` models, the sixteen
-biophysical features, `avg_plddt`, and `deepstabp_tm`) is the main source for every
-reported value. Larger metadata, protein structures, model weights, and folding outputs
-are provided through the data-availability statement and configured through `paths.*`.
-
-- R and mgcv are required for the GAM landscapes (Fig 3C) and GAM deviance (Table S15); see
-  [`environment-R.md`](environment-R.md).
-- Model weights, ColabFold, DeepStabP, and the RCSB API are external services; see
-  [`external-services.md`](external-services.md).
-
-## Reproducing the results
+With an existing Python 3.10+ environment:
 
 ```bash
-decoding-bias figures            # status of every paper output
-decoding-bias figures --run      # dataset, variance, importance, and pca into results/
-decoding-bias taxonomy           # Figure 2 and Table 3 (seeded permutation Elo)
-decoding-bias verify --full      # full regression check, including Elo
+python -m pip install -e .
+decoding-bias reproduce --quick
 ```
 
-## License
+The quick run takes about one minute and verifies every Python analysis except the
+seeded species-Elo calculation. The full run adds that calculation and the R/mgcv
+GAM landscapes and takes about six minutes on a typical laptop. Both write a human-readable report to
+`results/reviewer/reproduction_report.md`; a non-matching result exits with status 1.
 
-MIT; see [`LICENSE`](LICENSE).
+## What is reproduced
+
+| Analysis | Paper output | Quick | Full |
+|---|---|:---:|:---:|
+| Dataset composition | Methods / Table 7 | yes | yes |
+| Variance decomposition and pLDDT control | Tables 1–2; SI controls | yes | yes |
+| Species-level Elo | Figure 2; Table 3 | — | yes |
+| Biophysical PCA | Figure 3A–B; Table S14 | yes | yes |
+| GAM preference landscapes | Figure 3C; Table S15 | — | yes |
+| Property importance | Tables S16–S18 | yes | yes |
+| Designed-sequence shifts | Figure 4; Tables 4 and S21 | yes | yes |
+| Fine-tuning surface steer and scTM | Figure 5; Tables 5–6 and S22; SI scTM | yes | yes |
+
+Each stage can also be run alone, for example:
+
+```bash
+decoding-bias taxonomy --permutations 50
+decoding-bias design
+decoding-bias finetune
+```
+
+## Repository map
+
+```text
+data/                              analysis-ready row-level inputs
+expected/                          manuscript-era numeric reference outputs
+src/decoding_bias/analysis/        one compact module per paper analysis
+src/decoding_bias/reproduce.py     runner and numeric comparisons
+tests/                             smoke and end-to-end regression tests
+```
+
+See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the exact analysis boundary and
+[data/README.md](data/README.md) for input contracts and provenance. The independent
+876-chain PDB cohort and its manuscript-era supplementary outputs are included as
+audit material; they are not refit by the one-command reviewer workflow.
+
+## License and citation
+
+The code is MIT licensed. See [CITATION.cff](CITATION.cff) for citation metadata.

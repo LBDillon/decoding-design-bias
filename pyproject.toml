@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "decoding-design-bias"
 version = "0.2.0"
-description = "Analysis code for the decoding design bias paper (Dillon, Maiwald & Crook)"
+description = "Reviewer reproduction for the decoding design bias paper"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
@@ -14,14 +14,11 @@ dependencies = [
     "numpy>=1.23",
     "scipy>=1.9",
     "statsmodels>=0.13",
-    "scikit-learn>=1.1",
     "matplotlib>=3.6",
-    "plotly>=5.0",
-    "biopython>=1.80",
-    "pyyaml",
-    "tqdm",
-    "requests",
 ]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
 
 [project.scripts]
 decoding-bias = "decoding_bias.cli:main"
@@ -31,4 +28,7 @@ where = ["src"]
 include = ["decoding_bias*"]
 
 [tool.setuptools.package-data]
-decoding_bias = ["config_default.yaml", "scoring/*.yaml"]
+decoding_bias = ["analysis/*.R"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,8 +1,7 @@
 """Biophysical PCA tables (paper Fig 3A/B; SI Table S14 loadings, compactness).
 
-The Fig 3C / S8 GAM *landscapes* and the Table S15 GAM deviance-explained are
-produced by the R/mgcv notebook (04_pca_gam/PCA_paper_figures.ipynb +
-pca_corrections.R)this module covers the Python-computable pieces:
+The Fig 3C GAM landscapes and Table S15 GAM deviance-explained are produced by
+``analysis/gam_landscapes.R``. This module covers the Python-computable pieces:
 
   * the 14-feature PCA (same SVD of standardised features as the variance
     decomposition), its loadings (Table S14) and explained-variance ratios
@@ -55,7 +54,7 @@ def fit(df: pd.DataFrame):
 def _bhattacharyya(mu1, cov1, mu2, cov2) -> float:
     cov = (cov1 + cov2) / 2
     diff = (mu1 - mu2).reshape(-1, 1)
-    d = 0.125 * float(diff.T @ np.linalg.inv(cov) @ diff)
+    d = 0.125 * (diff.T @ np.linalg.inv(cov) @ diff).item()
     d += 0.5 * np.log(np.linalg.det(cov) / np.sqrt(np.linalg.det(cov1) * np.linalg.det(cov2)))
     return float(np.exp(-d))                      # coefficient in [0,1]
 
@@ -100,22 +99,22 @@ def run(cfg, out_dir: Path | None = None) -> dict:
 
 def crosscheck_gam(cfg, comp: pd.DataFrame, out_dir: Path) -> float | None:
     """Emit the deposited GAM deviance (Table S15, R/mgcv) and cross-check that the
-    Python PCA matches the R notebook via the per-domain compactness overlaps.
+    Python PCA matches the R implementation via the per-domain compactness overlaps.
     Returns the max overlap difference, or None if the deposited outputs are absent."""
     import shutil
-    dep = cfg.root / "00_data" / "pca_gam"
-    gam = dep / "gam_deviance.csv"
+    dep = cfg.gam_dir
+    gam = dep / "gam_deviance_reference.csv"
     if gam.exists():
         shutil.copy2(gam, out_dir / "gam_deviance.csv")     # Table S15 (R-only)
     rcomp = dep / "compactness_R.csv"
     if not rcomp.exists():
-        print("[pca] (no deposited R outputs to cross-check; run the R notebook for Table S15)")
+        print("[pca] (no deposited R outputs to cross-check; run `decoding-bias gam`)")
         return None
     rc = pd.read_csv(rcomp).set_index("pair")["bhattacharyya_overlap"]
     got = {"Eukaryota-vs-Bacteria": comp["overlap_Eukaryota_Bacteria"].iloc[0] / 100,
            "Eukaryota-vs-Archaea": comp["overlap_Eukaryota_Archaea"].iloc[0] / 100,
            "Bacteria-vs-Archaea": comp["overlap_Bacteria_Archaea"].iloc[0] / 100}
     maxdiff = max(abs(float(rc[k]) - got[k]) for k in got)
-    print(f"[pca] cross-check vs R notebook (Table S14/compactness): "
+    print(f"[pca] cross-check vs R implementation (Table S14/compactness): "
           f"max overlap diff = {maxdiff:.2e} ({'MATCH' if maxdiff < 1e-3 else 'MISMATCH'})")
     return maxdiff

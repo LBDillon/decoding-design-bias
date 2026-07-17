@@ -1,4 +1,4 @@
-"""Authoritative scientific catalog: features, models, domains, palettes.
+"""features, models, domains, palettes.
 """
 from __future__ import annotations
 

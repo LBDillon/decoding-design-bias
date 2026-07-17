@@ -1,4 +1,4 @@
-"""Property-to-score importance (SI Fig S6; Tables S16-S18).
+"""Property-to-score importance (SI figure and Tables S16-S18).
 
 Per model: within-family de-mean (controls protein type), standardise, then
 Johnson relative weights (% of within-family R^2, collinearity-robust), univariate
@@ -76,11 +76,9 @@ def analyse(df, models, label, min_rows=200):
     return pd.DataFrame(rows)
 
 
-def run(cfg, out_dir: Path | None = None) -> pd.DataFrame:
+def run(cfg, out_dir: Path | None = None, min_rows: int = 200) -> pd.DataFrame:
     out_dir = Path(out_dir) if out_dir else cfg.stage_output("property_importance")
     out_dir.mkdir(parents=True, exist_ok=True)
-    min_rows = cfg.params("property_importance").get("min_rows", 200)
-
     v = load_analysis_table(cfg.analysis_table, domains_only=True)
     print(f"[importance] input n={len(v)}")
     panel = analyse(v, PANEL, "panel", min_rows)
