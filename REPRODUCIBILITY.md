@@ -1,12 +1,9 @@
 # Reproducibility scope
 
-## Reviewer boundary
-
-The default reproduction begins at the analysis-ready tables in `data/`. This is the
-appropriate boundary for checking the paper's quantitative claims: the tables retain
-individual proteins, species, families, models, designed sequences' derived features,
-and matched observations, so aggregation choices, effect sizes, statistical tests,
-and figures are all rerun rather than replayed from final summaries.
+The default reproduction begins at the analysis-ready tables in `data/` for checking 
+the paper's quantitative claims: the tables retain individual proteins, species, families, 
+models, designed sequences' derived features, and matched observations, so aggregation
+choices, effect sizes, statistical tests, and figures are all rerun.
 
 The fine-tuning check includes 625 row-level refold observations and reproduces the
 reported mean scTM values (0.54 base, 0.51 AlkSecMPNN, 0.45 AcidSecMPNN, 0.38 WT).
@@ -60,11 +57,10 @@ after the repository has been cloned.
 
 ## Computational resources and cost
 
-The quick reviewer reproduction is CPU-only, takes about one minute on a typical
-laptop, and verifies every Python analysis except the seeded species-Elo calculation.
-The full reviewer reproduction is also CPU-only, takes about six minutes on a typical
-laptop, and adds the seeded Elo calculation and R/mgcv GAM landscapes. GitHub Actions
-runs the package tests with Python 3.11 on an Ubuntu runner.
+The quick reviewer reproduction is CPU-only and verifies every Python analysis except 
+the seeded species-Elo calculation. The full reviewer reproduction is also CPU-only and 
+adds the seeded Elo calculation and R/mgcv GAM landscapes. GitHub Actions runs the
+package tests with Python 3.11 on an Ubuntu runner.
 
 The deposited workflow does not require parallel or distributed execution, a GPU,
 network access, credentials, or external services. Exact runtime is recorded in the
