@@ -70,6 +70,10 @@ See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the exact analysis boundary and
 876-chain PDB cohort and its manuscript-era supplementary outputs are included as
 audit material; they are not refit by the one-command reviewer workflow.
 
+The study-level [model card](MODEL_CARD.md) documents the evaluated model families,
+intended use, model and checkpoint access, data splits, evaluation strategy, and
+limitations.
+
 ## License and citation
 
 The code is MIT licensed. See [CITATION.cff](CITATION.cff) for citation metadata.

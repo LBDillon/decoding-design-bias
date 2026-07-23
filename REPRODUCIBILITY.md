@@ -58,6 +58,34 @@ run additionally needs `Rscript` and the R package `mgcv`. `environment.yaml` pi
 portable conda environment. No network, credentials, model weights, or GPU are needed
 after the repository has been cloned.
 
+## Computational resources and cost
+
+The quick reviewer reproduction is CPU-only, takes about one minute on a typical
+laptop, and verifies every Python analysis except the seeded species-Elo calculation.
+The full reviewer reproduction is also CPU-only, takes about six minutes on a typical
+laptop, and adds the seeded Elo calculation and R/mgcv GAM landscapes. GitHub Actions
+runs the package tests with Python 3.11 on an Ubuntu runner.
+
+The deposited workflow does not require parallel or distributed execution, a GPU,
+network access, credentials, or external services. Exact runtime is recorded in the
+generated reproduction report. Carbon-footprint estimates were not calculated.
+
+The upstream stages excluded from this reviewer branch had materially different
+requirements: public third-party checkpoints, GPU-capable runtimes, AlphaFold or
+ColabFold, DeepStabP, UniProt snapshots, and RCSB downloads. Historical upstream code
+remains in git history, but hardware models and end-to-end compute costs were not
+recorded consistently enough to report retrospectively. See [MODEL_CARD.md](MODEL_CARD.md)
+for the model sources and limitations.
+
+## Data provenance and availability
+
+The public repository contains the analysis-ready row-level inputs used by the
+reviewer reproduction, with byte-level identities recorded in `data/SHA256SUMS`.
+The manuscript submission supplies the study dataset as a Supplementary Dataset.
+The main cohort was assembled from reviewed UniProt/Swiss-Prot entries with matching
+AlphaFold Database structures; `data/README.md` lists the statistical unit and row
+count of every deposited table.
+
 ## What a successful run means
 
 A PASS establishes that the deposited row-level inputs reproduce the committed
