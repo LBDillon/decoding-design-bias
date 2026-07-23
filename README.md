@@ -1,4 +1,4 @@
-# Decoding design bias: reviewer reproduction
+# Decoding design bias
 
 This repository contains an analysis-ready reproduction for
 *Decoding the physicochemical basis of taxonomy preferences in protein design
