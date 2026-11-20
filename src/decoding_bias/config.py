@@ -23,7 +23,6 @@ class Config:
     design_dir: Path
     finetune_dir: Path
     pdb_dir: Path
-    gam_dir: Path
     expected_dir: Path
     output_dir: Path
 
@@ -49,7 +48,6 @@ class Config:
             design_dir=resolve("data/design"),
             finetune_dir=resolve("data/finetune"),
             pdb_dir=resolve("data/pdb"),
-            gam_dir=resolve("data/gam"),
             expected_dir=resolve("expected"),
             output_dir=resolve(output_dir or "results"),
         )

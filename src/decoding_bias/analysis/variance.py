@@ -1,11 +1,7 @@
-"""Score-variance decomposition (paper Table 1, Table 2; SI Fig S2, Tables S9/S10).
-
-The numeric decomposition (`compute`) is separated from the figures so the reported
-statistics can be tested without plotting.
+"""Score-variance decomposition (main Table 1; Tables S6, S9 and S24; Figures S1-S2).
 
 Method:
-  - 14-feature biophysical set (catalog.BIOPHYS_14); PC1/PC2 computed inline by SVD
-    of the standardised (ddof=0) features over complete-biophysics rows.
+  - 14-feature biophysical set (catalog.BIOPHYS_14) and its PC1/PC2 from `pca.fit`.
   - Per model, standardise the score, then QR-based R^2 / adjusted R^2 of the score
     on each predictor block (LowDim PC1+PC2, Biophys, Family, Species, and unions),
     nested partial-R^2 F-tests, species attenuation, and the Simpson's-paradox
@@ -18,15 +14,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.linalg import qr
 from scipy.stats import f as fdist
 
 from .. import catalog
 from ..data import load_analysis_table
+from .pca import fit as fit_pca
 
 warnings.filterwarnings("ignore")
 
-SEQ = catalog.SEQUENCE_FEATURES_14
-STRUCT = catalog.STRUCTURE_FEATURES_14
 BIOPHYS = catalog.BIOPHYS_14
 MODELS = catalog.FULL_COHORT
 
@@ -36,14 +32,19 @@ PREDICTOR_SETS = [
 ]
 
 
-# --------------------------------------------------------------------------- #
-# Linear-algebra kernels 
-# --------------------------------------------------------------------------- #
 def make_Q(X):
-    """Orthonormal basis (incl. intercept) for a design matrix."""
+    """Basis for the numerical column space, including an intercept.
+
+    Pivoting identifies redundant predictors. Retaining the extra columns from
+    an unpivoted economic QR would fit arbitrary directions outside that space.
+    The parameter count excludes the intercept and uses the actual rank.
+    """
     Xi = np.column_stack([np.ones(len(X)), X])
-    Q, _ = np.linalg.qr(Xi)
-    return Q, Xi.shape[1] - 1
+    Q, R, _ = qr(Xi, mode="economic", pivoting=True)
+    diagonal = np.abs(np.diag(R))
+    tolerance = np.finfo(Xi.dtype).eps * max(Xi.shape) * diagonal.max()
+    rank = int(np.count_nonzero(diagonal > tolerance))
+    return Q[:, :rank], rank - 1
 
 
 def ssr_from_Q(y, Q):
@@ -109,30 +110,9 @@ def species_effect_collapse(y, sp_codes, n_sp, bases):
         out[f"species_effect_retention_{tag}"] = (
             weighted_sd(adj, counts) / sd_marg if sd_marg > 0 else np.nan
         )
-        flip = (np.sign(marg) != np.sign(adj)) & (marg != 0)
+        flip = (marg * adj < 0) & (np.abs(marg) > 1e-12) & (np.abs(adj) > 1e-12)
         out[f"species_effect_signflip_{tag}"] = np.average(flip, weights=counts)
     return out
-
-
-def validate_results(res):
-    required_cols = [
-        "R2_Fam+Spec", "R2_Biophys+Family", "R2_Full",
-        "dBiophys_given_family_species", "dSpecies_given_family_biophys",
-        "biophys_partial_R2_given_family_species",
-        "species_partial_R2_given_family_biophys",
-    ]
-    missing = [c for c in required_cols if c not in res.columns]
-    if missing:
-        raise RuntimeError(f"Missing required output columns: {missing}")
-    assert np.allclose(res["dBiophys_given_family_species"], res["R2_Full"] - res["R2_Fam+Spec"])
-    assert np.allclose(res["dSpecies_given_family_biophys"], res["R2_Full"] - res["R2_Biophys+Family"])
-    assert np.allclose(
-        res["species_attenuation"],
-        (res["species_only_R2"] - res["residual_species_R2"]) / res["species_only_R2"],
-    )
-    assert np.allclose(res["species_only_R2"], res["R2_Species"])
-    assert np.allclose(res["residual_species_R2"], res["dSpecies_given_family_biophys"])
-    assert np.allclose(res["residual_biophysics_R2"], res["dBiophys_given_family_species"])
 
 
 def decompose_response(y, bases, sp_codes, n_sp):
@@ -149,11 +129,12 @@ def decompose_response(y, bases, sp_codes, n_sp):
     rec["dSpecies_given_family_biophys"] = R["Full"][0] - R["Biophys+Family"][0]
     rec["dFamily_given_species_biophys"] = R["Full"][0] - R["Biophys+Species"][0]
     rec["dFamilySpecies_given_biophys"] = R["Full"][0] - R["Biophys"][0]
-    rec["species_only_R2"] = R["Species"][0]
-    rec["family_only_R2"] = R["Family"][0]
-    rec["biophysics_only_R2"] = R["Biophys"][0]
-    rec["residual_species_R2"] = R["Full"][0] - R["Biophys+Family"][0]
-    rec["residual_biophysics_R2"] = R["Full"][0] - R["Fam+Spec"][0]
+    # The SI's names for five of the values above, kept so the output matches Source Data.
+    rec["species_only_R2"] = rec["R2_Species"]
+    rec["family_only_R2"] = rec["R2_Family"]
+    rec["biophysics_only_R2"] = rec["R2_Biophys"]
+    rec["residual_species_R2"] = rec["dSpecies_given_family_biophys"]
+    rec["residual_biophysics_R2"] = rec["dBiophys_given_family_species"]
     rec["species_attenuation"] = (
         (rec["species_only_R2"] - rec["residual_species_R2"]) / rec["species_only_R2"]
         if rec["species_only_R2"] > 0 else np.nan)
@@ -218,18 +199,13 @@ OUTPUT_COLS = (
 )
 
 
-def _pca_coords(df: pd.DataFrame) -> pd.DataFrame:
-    """Inline 14-feature PCA (SVD of standardised features), as run_vd_14feat_v020.py."""
-    cc = df[df[BIOPHYS].notna().all(axis=1)].copy()
-    Z = ((cc[BIOPHYS] - cc[BIOPHYS].mean()) / cc[BIOPHYS].std(ddof=0)).values
-    U, S, _ = np.linalg.svd(Z, full_matrices=False)
-    X = U[:, :2] * S[:2]
-    return pd.DataFrame({"Entry": cc["Entry"].values, "PC1": X[:, 0], "PC2": X[:, 1]})
+def pca_coordinates(df: pd.DataFrame) -> pd.DataFrame:
+    """PC1/PC2 of the 14-feature PCA for every protein with complete features."""
+    return fit_pca(df)[0][["Entry", "PC1", "PC2"]]
 
 
 def compute(df: pd.DataFrame) -> pd.DataFrame:
-    """Run the decomposition on a table that already carries PC1/PC2. Returns the
-    per-model results DataFrame (paper Table 1/2/S9/S10 source)."""
+    """Decompose every model's score on a table that already carries PC1/PC2."""
     df = df[df.domain.isin(catalog.DOMAINS)].dropna(subset=BIOPHYS + ["PC1", "PC2"])
     score_cols = [c for c, _ in MODELS.values()]
     df = df.dropna(subset=score_cols).reset_index(drop=True)
@@ -242,17 +218,15 @@ def compute(df: pd.DataFrame) -> pd.DataFrame:
         rec.update(decompose_response(df[col].values, bases, sp_codes, n_sp))
         rows.append(rec)
 
-    res = pd.DataFrame(rows)
-    validate_results(res)
-    return res[OUTPUT_COLS]
+    return pd.DataFrame(rows)[OUTPUT_COLS]
 
 
 def run(cfg, out_dir: Path | None = None, make_figures: bool = True) -> pd.DataFrame:
-    """End-to-end: load table, compute decomposition, write CSV (+ SI figures)."""
+    """Load the table, decompose every model's score and write the CSV and figure."""
     out_dir = Path(out_dir) if out_dir else cfg.stage_output("variance_decomposition")
     out_dir.mkdir(parents=True, exist_ok=True)
     df = load_analysis_table(cfg.analysis_table, domains_only=False)
-    coords = _pca_coords(df)
+    coords = pca_coordinates(df)
     coords.to_csv(out_dir / "pca_coords_14feat.csv", index=False)
     merged = df.merge(coords, on="Entry", how="inner")
     res = compute(merged)
@@ -260,22 +234,21 @@ def run(cfg, out_dir: Path | None = None, make_figures: bool = True) -> pd.DataF
     print(f"[variance] {len(res)} models -> {out_dir/'score_variance_decomposition.csv'}")
     if make_figures:
         from .. import plotting
-        plotting.variance_decomposition_figures(res, out_dir, n_features=len(BIOPHYS))
+        plotting.variance_decomposition_figure(res, out_dir)
     return res
 
 
 def run_plddt(cfg, out_dir: Path | None = None) -> pd.DataFrame:
-    """Decompose AlphaFold's own confidence (avg_plddt) like a model score (Table S13).
+    """Decompose AlphaFold's confidence (avg_plddt) as if it were a model score (Table S9).
 
-    Same 14-feature nested decomposition as `run`, but the response is avg_plddt and the
-    complete-case is the full AFDB cohort (no model-score requirement), so it needs only
-    the shipped table - no external metadata. Reproduces the SI pLDDT-VD row."""
+    The response is avg_plddt and the cohort is every protein with complete features,
+    without requiring model scores."""
     out_dir = Path(out_dir) if out_dir else cfg.stage_output("variance_decomposition")
     out_dir.mkdir(parents=True, exist_ok=True)
     df = load_analysis_table(cfg.analysis_table, domains_only=True)
     if "avg_plddt" not in df.columns:
         raise KeyError("avg_plddt column missing from the analysis table")
-    coords = _pca_coords(df)
+    coords = pca_coordinates(df)
     df = df.merge(coords, on="Entry", how="inner")
     df = df.dropna(subset=BIOPHYS + ["PC1", "PC2", "avg_plddt"]).reset_index(drop=True)
     bases, sp_codes, n_sp = _build_bases(df)

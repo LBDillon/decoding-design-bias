@@ -1,4 +1,4 @@
-name: reviewer reproduction
+name: quick reproduction
 
 on:
   push:

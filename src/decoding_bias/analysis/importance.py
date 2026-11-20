@@ -1,4 +1,4 @@
-"""Property-to-score importance (SI figure and Tables S16-S18).
+"""Property-to-score importance (Figure S8; Tables S16-S18).
 
 Per model: within-family de-mean (controls protein type), standardise, then
 Johnson relative weights (% of within-family R^2, collinearity-robust), univariate
@@ -18,7 +18,6 @@ from .. import catalog
 from ..data import load_analysis_table
 
 SEQ = catalog.SEQUENCE_FEATURES_14
-STRUCT = catalog.STRUCTURE_FEATURES_14
 FEATS = catalog.BIOPHYS_14
 PANEL = catalog.IMPORTANCE_PANEL
 FINETUNE = catalog.FINETUNE_020
