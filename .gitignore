@@ -1,7 +1,7 @@
-# Reviewer outputs
+# Outputs
 results/
 
-# Optional upstream artifacts (not part of the reviewer bundle)
+# Upstream files that are not part of this repository
 data/raw/
 00_data/
 *.pdb
@@ -25,7 +25,7 @@ colabfold_output/
 *_api_key*
 credentials*
 
-# Python, R, editors, and builds
+# Python, R, editors and builds
 __pycache__/
 *.pyc
 *.egg-info/

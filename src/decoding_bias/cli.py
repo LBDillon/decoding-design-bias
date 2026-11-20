@@ -1,4 +1,4 @@
-"""Command-line interface for the compact reviewer reproduction."""
+"""Command-line interface for the reproduction."""
 from __future__ import annotations
 
 import argparse
@@ -37,7 +37,7 @@ def cmd_variance(args) -> int:
 
 def cmd_taxonomy(args) -> int:
     from .analysis import elo
-    elo.run(_config(args), n_permutations=args.permutations)
+    elo.run(_config(args), n_permutations=args.permutations, plddt_control=args.plddt_control)
     return 0
 
 
@@ -50,7 +50,7 @@ def cmd_pca(args) -> int:
 def cmd_gam(args) -> int:
     cfg = _config(args)
     if not shutil.which("Rscript"):
-        print("Rscript was not found; see environment-R.md", file=sys.stderr)
+        print("Rscript was not found; see the R setup instructions in README.md", file=sys.stderr)
         return 2
     script = cfg.root / "src/decoding_bias/analysis/gam_landscapes.R"
     completed = subprocess.run(["Rscript", str(script), str(cfg.analysis_table), str(cfg.stage_output("gam"))])
@@ -78,33 +78,35 @@ def cmd_finetune(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="decoding-bias",
-        description="Reproduce the quantitative results in Decoding design bias.",
+        description="Reproduce the statistical analyses of the decoding design bias paper.",
     )
     parser.add_argument("--data", help="override data/main_analysis.csv")
     parser.add_argument("--output-dir", help="override the results directory")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    reproduce = commands.add_parser("reproduce", help="run and verify the reviewer reproduction")
+    reproduce = commands.add_parser("reproduce", help="run every analysis and compare it with the references")
     reproduce.add_argument("--quick", action="store_true", help="skip Elo and R/GAM")
     reproduce.set_defaults(function=cmd_reproduce)
 
-    dataset = commands.add_parser("dataset", help="print the deposited cohort composition")
+    dataset = commands.add_parser("dataset", help="Table S28 cohort composition")
     dataset.set_defaults(function=cmd_dataset)
 
-    variance = commands.add_parser("variance", help="Tables 1-2 and pLDDT control")
+    variance = commands.add_parser("variance", help="Table 1 and Tables S6, S9, S24")
     variance.add_argument("--no-figures", action="store_true")
     variance.set_defaults(function=cmd_variance)
 
-    taxonomy = commands.add_parser("taxonomy", help="Figure 2 and Table 3 species Elo")
+    taxonomy = commands.add_parser("taxonomy", help="Figure 2, Table 2 and Tables S10-S13 species Elo")
     taxonomy.add_argument("--permutations", type=int, default=50)
+    taxonomy.add_argument("--plddt-control", choices=["weighted", "residualised"],
+                          help="the pLDDT controls in Table S10")
     taxonomy.set_defaults(function=cmd_taxonomy)
 
     for name, help_text, function in [
-        ("pca", "Figure 3A-B and Table S14", cmd_pca),
-        ("gam", "Figure 3C and Table S15 (R/mgcv)", cmd_gam),
+        ("pca", "Figure 3b-c and Table S14", cmd_pca),
+        ("gam", "Figure 3a and Table S15 (R/mgcv)", cmd_gam),
         ("importance", "Tables S16-S18", cmd_importance),
-        ("design", "Figure 4 and Table 4", cmd_design),
-        ("finetune", "Figure 5 and Tables 5-6", cmd_finetune),
+        ("design", "Figure 4c and Tables S20, S21, S25", cmd_design),
+        ("finetune", "Figure 4a and Tables S22, S23, S26, S27", cmd_finetune),
     ]:
         command = commands.add_parser(name, help=help_text)
         command.set_defaults(function=function)
