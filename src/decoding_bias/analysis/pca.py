@@ -1,13 +1,9 @@
-"""Biophysical PCA tables (paper Fig 3A/B; SI Table S14 loadings, compactness).
+"""Biophysical PCA (Figure 3b-c; Table S14).
 
-The Fig 3C GAM landscapes and Table S15 GAM deviance-explained are produced by
-``analysis/gam_landscapes.R``. This module covers the Python-computable pieces:
-
-  * the 14-feature PCA (same SVD of standardised features as the variance
-    decomposition), its loadings (Table S14) and explained-variance ratios
-    (PC1 23.4%, PC2 16.7%),
-  * per-domain PC1/PC2 means, 1-SD ellipse areas, and pairwise Bhattacharyya
-    overlaps (the compactness table).
+The GAM landscapes (Figure 3a; Table S15) are fitted in ``analysis/gam_landscapes.R``.
+This module computes the 14-feature PCA, its loadings and explained variance
+(PC1 23.4%, PC2 16.6%), and per-domain means, 1-SD ellipse areas and pairwise
+Bhattacharyya overlaps.
 """
 from __future__ import annotations
 
@@ -21,8 +17,8 @@ from ..data import load_analysis_table
 
 BIOPHYS = catalog.BIOPHYS_14
 
-# Reference sign convention (paper Table S14): sequence_length loads + on PC1;
-# gravy loads - on PC2. We flip each PC to match these so signs are reproducible.
+# Sign convention of Table S14: sequence_length loads positively on PC1 and gravy
+# negatively on PC2.
 _SIGN_REF = {"pc1_feature": ("sequence_length", +1.0), "pc2_feature": ("gravy", -1.0)}
 
 
@@ -93,28 +89,13 @@ def run(cfg, out_dir: Path | None = None) -> dict:
     var.to_csv(out_dir / "pca_variance.csv", index=False)
     print(f"[pca] PC1={explained[0]*100:.1f}% PC2={explained[1]*100:.1f}% "
           f"(cumulative {explained.sum()*100:.1f}%) -> {out_dir}")
-    crosscheck_gam(cfg, comp, out_dir)
     return {"coords": coords, "loadings": loadings, "explained": explained, "compactness": comp}
 
 
-def crosscheck_gam(cfg, comp: pd.DataFrame, out_dir: Path) -> float | None:
-    """Emit the deposited GAM deviance (Table S15, R/mgcv) and cross-check that the
-    Python PCA matches the R implementation via the per-domain compactness overlaps.
-    Returns the max overlap difference, or None if the deposited outputs are absent."""
-    import shutil
-    dep = cfg.gam_dir
-    gam = dep / "gam_deviance_reference.csv"
-    if gam.exists():
-        shutil.copy2(gam, out_dir / "gam_deviance.csv")     # Table S15 (R-only)
-    rcomp = dep / "compactness_R.csv"
-    if not rcomp.exists():
-        print("[pca] (no deposited R outputs to cross-check; run `decoding-bias gam`)")
-        return None
-    rc = pd.read_csv(rcomp).set_index("pair")["bhattacharyya_overlap"]
-    got = {"Eukaryota-vs-Bacteria": comp["overlap_Eukaryota_Bacteria"].iloc[0] / 100,
-           "Eukaryota-vs-Archaea": comp["overlap_Eukaryota_Archaea"].iloc[0] / 100,
-           "Bacteria-vs-Archaea": comp["overlap_Bacteria_Archaea"].iloc[0] / 100}
-    maxdiff = max(abs(float(rc[k]) - got[k]) for k in got)
-    print(f"[pca] cross-check vs R implementation (Table S14/compactness): "
-          f"max overlap diff = {maxdiff:.2e} ({'MATCH' if maxdiff < 1e-3 else 'MISMATCH'})")
-    return maxdiff
+def overlap_difference_from_r(comp: pd.DataFrame, reference: Path) -> float:
+    """Largest difference between these domain overlaps and the R calculation."""
+    r = pd.read_csv(reference).set_index("pair")["bhattacharyya_overlap"]
+    ours = {"Eukaryota-vs-Bacteria": "overlap_Eukaryota_Bacteria",
+            "Eukaryota-vs-Archaea": "overlap_Eukaryota_Archaea",
+            "Bacteria-vs-Archaea": "overlap_Bacteria_Archaea"}
+    return max(abs(float(r[pair]) - comp[column].iloc[0] / 100) for pair, column in ours.items())

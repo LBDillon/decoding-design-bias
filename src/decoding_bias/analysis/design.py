@@ -1,9 +1,7 @@
-"""Reproduction for the designed-sequence results (Figure 4, Table 4).
+"""Designed-sequence shifts and functional-site recovery (Figure 4c; Figure S9; Tables S20, S21, S25).
 
-The deposited inputs start after model generation and structure prediction:
-per-design features, matched wild-type features, and per-design functional-site
-recovery.  That is the smallest level of data that still lets a reviewer recompute
-the paired effect sizes and statistical tests.
+The inputs start after sequence generation and structure prediction: per-design
+features, matched wild-type features and per-design functional-site recovery.
 """
 from __future__ import annotations
 
@@ -23,7 +21,8 @@ MODELS = [
     "ESM-IF", "MIF", "MIF-ST",
 ]
 
-# The twelve non-constant properties reported in manuscript Table S21.
+# The twelve properties in Table S20. Sequence length and surface exposure are fixed
+# by the backbone, so they do not vary between a design and its template.
 PROPERTIES = [
     "mw_per_residue", "isoelectric_point", "acidic_residue_fraction",
     "basic_residue_fraction", "gravy", "aromaticity", "instability_index",
@@ -63,7 +62,11 @@ def design_shifts(designs: pd.DataFrame, wild_types: pd.DataFrame) -> tuple[pd.D
         for feature in PROPERTIES:
             values = group[feature].dropna().to_numpy(float)
             dz = values.mean() / values.std(ddof=1) if len(values) >= 3 and values.std(ddof=1) else np.nan
-            p = stats.wilcoxon(values).pvalue if len(values) >= 3 and not np.allclose(values, 0) else np.nan
+            # Same convention as R wilcox.test(exact=FALSE, correct=TRUE). Inputs are rounded
+            # so that mathematically tied differences rank as ties. BH below covers all
+            # 7 models x 12 properties = 84 comparisons.
+            p = stats.wilcoxon(np.round(values, 12), alternative="two-sided", zero_method="wilcox",
+                               method="approx", correction=True).pvalue if len(values) >= 3 and not np.allclose(values, 0, atol=1e-12, rtol=0) else np.nan
             stats_rows.append({
                 "model": model,
                 "feature": feature,
@@ -138,6 +141,8 @@ def run(cfg, out_dir: Path | None = None) -> dict[str, pd.DataFrame]:
     functional_summary = functional_residue_summary(functional)
     delta.to_csv(out / "wt_design_deltas.csv", index=False)
     shifts.to_csv(out / "physchem_effect_sizes.csv", index=False)
+    effects = shifts.pivot(index="feature", columns="model", values="dz").reindex(PROPERTIES, columns=MODELS)
+    effects.corr().to_csv(out / "correlations_12_standardised_effects.csv")
     functional_summary.to_csv(out / "functional_residue_conservation_by_model.csv", index=False)
     _plot_shifts(shifts, out / "physchem_shift_heatmap.png")
     _plot_functional(functional_summary, out / "functional_residue_conservation.png")

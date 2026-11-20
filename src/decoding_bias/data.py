@@ -1,8 +1,4 @@
-"""Loading and complete-case selection for the analysis table.
-
-Read-and-filter helpers shared by the analysis stages: table loading, domain
-filtering, and complete-case selection on the feature and score columns.
-"""
+"""Loading, filtering and composition of the main analysis table."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,23 +9,16 @@ from . import catalog
 
 
 def load_analysis_table(path: str | Path, *, domains_only: bool = True) -> pd.DataFrame:
-    """Read the analysis table; optionally keep only the three canonical domains."""
+    """Read the table without the two excluded accessions; optionally keep only the three domains."""
     df = pd.read_csv(path, low_memory=False)
+    df = df.loc[~df[catalog.ID_COL].isin(catalog.PRIMARY_EXCLUDED_ACCESSIONS)].copy()
     if domains_only:
         df = df[df[catalog.DOMAIN_COL].isin(catalog.DOMAINS)].copy()
     return df
 
 
-def complete_case(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Rows with all of `columns` present, index reset (variance-decomposition style)."""
-    return df.dropna(subset=list(columns)).reset_index(drop=True)
-
-
 def dataset_composition(df: pd.DataFrame) -> dict:
-    """Reproduce the main-dataset composition counts (paper Table 7).
-
-    Returns proteins/species/family counts overall and per domain.
-    """
+    """Protein, species and family counts overall and per domain (Table S28)."""
     out: dict = {
         "n_proteins": int(len(df)),
         "n_species": int(df[catalog.SPECIES_COL].nunique()),
@@ -43,7 +32,6 @@ def dataset_composition(df: pd.DataFrame) -> dict:
             "proteins_pct": round(100 * len(sub) / len(df), 1),
             "species": int(sub[catalog.SPECIES_COL].nunique()),
         }
-    # family domain-span (three/two/single-domain families)
     span = df.groupby(catalog.FAMILY_COL)[catalog.DOMAIN_COL].nunique()
     out["families_three_domain"] = int((span == 3).sum())
     out["families_two_domain"] = int((span == 2).sum())
