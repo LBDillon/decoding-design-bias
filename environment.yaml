@@ -10,6 +10,6 @@ dependencies:
   - statsmodels>=0.13
   - matplotlib>=3.6
   - pytest>=8
-  # Required only by the full Figure 3C reproduction.
+  # Needed only for the GAMs in the full reproduction.
   - r-base>=4.3
   - r-mgcv

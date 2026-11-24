@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "decoding-design-bias"
-version = "0.2.0"
-description = "Reviewer reproduction for the decoding design bias paper"
+version = "0.3.2"
+description = "Analysis code and reproduction for the decoding design bias paper"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+figures = ["PyMuPDF>=1.24", "Pillow>=10"]
 
 [project.scripts]
 decoding-bias = "decoding_bias.cli:main"

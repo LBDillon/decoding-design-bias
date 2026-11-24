@@ -1,9 +1,9 @@
-"""Seeded species-level Elo analysis for Figure 2 and Table 3.
+"""Seeded species-level Elo ratings (Figure 2; main Table 2; Tables S10-S13).
 
-Within each protein family, scores are z-normalised.  Every pair of species in a
+Within each protein family, scores are z-normalised. Every pair of species in a
 family plays a match, families are visited in 50 seeded random orders, and the final
-species ratings are averaged across those orders.  This is the complete primary Elo
-calculation without the historical plotting and command-line layers.
+species ratings are averaged across those orders. The two pLDDT controls in Table S10
+weight each match by AlphaFold confidence or residualise scores on it first.
 """
 from __future__ import annotations
 
@@ -33,15 +33,33 @@ def _normalise_within_family(data: pd.DataFrame, score: str) -> pd.Series:
     return data.groupby(catalog.FAMILY_COL)[score].transform(zscore)
 
 
+def residualize_on_plddt(data: pd.DataFrame, scores: list[str]) -> pd.DataFrame:
+    """Remove each score's ordinary least-squares linear confidence component."""
+    out = data.copy()
+    p = pd.to_numeric(out['avg_plddt'], errors='coerce')
+    for score in scores:
+        y = pd.to_numeric(out[score], errors='coerce')
+        valid = p.notna() & y.notna()
+        if valid.sum() < 10:
+            raise ValueError(f'Too few observations to residualize {score}')
+        slope, intercept = np.polyfit(p[valid], y[valid], 1)
+        out[score] = y - (slope * p + intercept)
+    return out
+
+
 def compute_model(
     data: pd.DataFrame,
     score: str,
     *,
     n_permutations: int = 50,
     seed: int = SEED,
+    plddt_weighting: bool = False,
 ) -> dict[str, dict[str, float]]:
-    """Compute one model's unweighted species ratings."""
-    work = data[[catalog.FAMILY_COL, catalog.SPECIES_COL, score]].dropna().copy()
+    """Compute one model's species ratings, with optional confidence weighting."""
+    columns = [catalog.FAMILY_COL, catalog.SPECIES_COL, score]
+    if plddt_weighting:
+        columns.append('avg_plddt')
+    work = data[columns].dropna().copy()
     work[score] = _normalise_within_family(work, score)
     valid_families = (
         work.groupby(catalog.FAMILY_COL)[catalog.SPECIES_COL].nunique()
@@ -51,19 +69,21 @@ def compute_model(
     species = sorted(work[catalog.SPECIES_COL].unique())
     species_index = {name: index for index, name in enumerate(species)}
 
-    cache: dict[object, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
+    cache: dict[object, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]] = {}
     for family, group in work.groupby(catalog.FAMILY_COL):
         medians = group.groupby(catalog.SPECIES_COL)[score].median()
         ids = np.fromiter((species_index[name] for name in medians.index), dtype=np.int64)
         left, right = np.triu_indices(len(ids), k=1)
-        cache[family] = (ids, medians.to_numpy(float), left, right)
+        quality = (group.groupby(catalog.SPECIES_COL).avg_plddt.mean().reindex(medians.index).to_numpy()
+                   if plddt_weighting else None)
+        cache[family] = (ids, medians.to_numpy(float), left, right, quality)
 
     family_array = np.asarray(valid_families)
     runs: dict[str, list[float]] = defaultdict(list)
     for permutation in range(n_permutations):
         ratings = np.full(len(species), BASELINE)
         for family in np.random.default_rng(seed + permutation).permutation(family_array):
-            ids, scores, left, right = cache[family]
+            ids, scores, left, right, quality = cache[family]
             for pair in range(len(left)):
                 i, j = left[pair], right[pair]
                 a, b = ids[i], ids[j]
@@ -71,7 +91,8 @@ def compute_model(
                 outcome = .5 if abs(difference) < TOL else (1.0 if difference > 0 else 0.0)
                 rating_a, rating_b = ratings[a], ratings[b]
                 expected_a = 1.0 / (1.0 + 10.0 ** ((rating_b - rating_a) / 400.0))
-                delta = outcome - expected_a
+                weight = min(1., max(.01, quality[i] * quality[j] / 10000.)) if plddt_weighting else 1.
+                delta = (outcome - expected_a) * weight
                 ratings[a] = min(3000.0, max(100.0, rating_a + K_FACTOR * delta))
                 ratings[b] = min(3000.0, max(100.0, rating_b - K_FACTOR * delta))
         for name, index in species_index.items():
@@ -101,7 +122,7 @@ def _figure(long: pd.DataFrame, taxonomy: pd.DataFrame, path: Path) -> None:
     """Compact static version of the three Figure 2 panels."""
     summary = _domain_summary(long).set_index("model")
     order = [column for column in catalog.ELO_FULL_COLUMNS if column in summary.index]
-    pretty = [catalog.PRETTY.get(column, column) for column in order]
+    pretty = [catalog.LABELS[column] for column in order]
     score_types = {score: kind for score, kind in catalog.FULL_COHORT.values()}
     colors = [catalog.TYPE_COLORS[score_types[column]] for column in order]
 
@@ -124,7 +145,7 @@ def _figure(long: pd.DataFrame, taxonomy: pd.DataFrame, path: Path) -> None:
         subset["_domain"] = subset["domain"].map(domain_order)
         subset = subset.sort_values(["_domain", "rating"]).reset_index(drop=True)
         ax_species.plot(np.arange(len(subset)), subset["rating"] - BASELINE + offset,
-                        lw=.8, label=catalog.PRETTY.get(model, model), color=color)
+                        lw=.8, label=catalog.LABELS[model], color=color)
     ax_species.axhline(0, color="grey", lw=.8, ls="--")
     ax_species.set_xlabel("species grouped by domain"); ax_species.set_ylabel("Elo − 1500")
     ax_species.legend(frameon=False)
@@ -153,15 +174,24 @@ def run(
     *,
     n_permutations: int = 50,
     make_figure: bool = True,
+    plddt_control: str | None = None,
 ) -> dict[str, pd.DataFrame]:
-    out = Path(out_dir) if out_dir else cfg.stage_output("taxonomy")
+    """Rate species for all 14 models. ``plddt_control`` is None, 'weighted' or 'residualised'."""
+    if plddt_control not in (None, "weighted", "residualised"):
+        raise ValueError(f"Unknown pLDDT control: {plddt_control}")
+    out = Path(out_dir) if out_dir else cfg.stage_output("taxonomy" if plddt_control is None
+                                                          else f"taxonomy_plddt_{plddt_control}")
     out.mkdir(parents=True, exist_ok=True)
-    data = pd.read_csv(cfg.analysis_table, low_memory=False)
+    from ..data import load_analysis_table
+    data = load_analysis_table(cfg.analysis_table)
+    if plddt_control == "residualised":
+        data = residualize_on_plddt(data, catalog.ELO_FULL_COLUMNS)
     domain = data[[catalog.SPECIES_COL, catalog.DOMAIN_COL]].drop_duplicates().set_index(catalog.SPECIES_COL)[catalog.DOMAIN_COL]
     rows = []
     for index, model in enumerate(catalog.ELO_FULL_COLUMNS, start=1):
-        print(f"[taxonomy] model {index}/{len(catalog.ELO_FULL_COLUMNS)}: {catalog.PRETTY.get(model, model)}")
-        ratings = compute_model(data, model, n_permutations=n_permutations)
+        print(f"[taxonomy] model {index}/{len(catalog.ELO_FULL_COLUMNS)}: {catalog.LABELS[model]}")
+        ratings = compute_model(data, model, n_permutations=n_permutations,
+                                plddt_weighting=plddt_control == "weighted")
         for species, values in ratings.items():
             rows.append({"species": species, "model": model, **values, "domain": domain.get(species, "Unknown")})
     long = pd.DataFrame(rows)

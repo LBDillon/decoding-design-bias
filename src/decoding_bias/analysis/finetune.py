@@ -1,9 +1,9 @@
-"""Reproduction for the fine-tuning surface-chemistry results.
+"""Fine-tuning surface chemistry and self-consistency (Figure 4a; Figures S10-S12;
+Tables S22, S23, S26, S27).
 
-Model training and sequence generation require GPUs and checkpoints.  The deposited
-table contains one row per generated design (plus matched WT rows), which is enough
-to refit the surface acid-base PCA and recompute the protein-level paired tests in
-main Tables 5-6.  Table S22 uses the separate matched-secretome observations.
+The input has one row per generated design plus matched WT rows. From it the
+surface acid-base PCA is refitted and the protein-level paired tests recomputed.
+The matched surface-only redesign in Table S23 has its own input table.
 """
 from __future__ import annotations
 
@@ -148,7 +148,8 @@ def direct_feature_tests(table: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-def table_s22(source: Path) -> pd.DataFrame:
+def matched_surface_steer(source: Path) -> pd.DataFrame:
+    """Mean fine-tuned-minus-control surface net charge per model family (Table S23)."""
     matched = pd.read_csv(source)
     rows = []
     for family, group in matched.groupby("family", observed=True):
@@ -226,18 +227,18 @@ def run(cfg, out_dir: Path | None = None) -> dict[str, pd.DataFrame]:
     self_consistency_table = pd.read_csv(cfg.finetune_dir / "self_consistency.csv")
     per_protein, pca_tests, loadings = surface_shift_tests(table)
     direct = direct_feature_tests(table)
-    matched = table_s22(cfg.finetune_dir / "surface_shift_matched.csv")
+    matched = matched_surface_steer(cfg.finetune_dir / "surface_shift_matched.csv")
     sc_summary, sc_tests = self_consistency(self_consistency_table)
 
     per_protein.to_csv(out / "surface_pca_per_protein.csv", index=False)
     pca_tests.to_csv(out / "surface_pca_base_relative_tests.csv", index=False)
     loadings.to_csv(out / "surface_pca_loadings.csv", index=False)
     direct.to_csv(out / "direct_feature_base_relative_tests.csv", index=False)
-    matched.to_csv(out / "table_s22_surface_steer.csv", index=False)
+    matched.to_csv(out / "matched_surface_steer.csv", index=False)
     sc_summary.to_csv(out / "self_consistency_summary.csv", index=False)
     sc_tests.to_csv(out / "self_consistency_paired_tests.csv", index=False)
     _plot(per_protein, out / "finetune_surface_shift.png")
-    print(f"[finetune] Tables 5-6/S22 and scTM self-consistency -> {out}")
+    print(f"[finetune] surface-chemistry tests and scTM self-consistency -> {out}")
     return {"pca": pca_tests, "direct": direct, "matched": matched,
             "self_consistency": sc_summary, "self_consistency_tests": sc_tests,
             "per_protein": per_protein}

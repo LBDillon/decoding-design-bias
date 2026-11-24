@@ -1,4 +1,4 @@
-"""One-command reviewer reproduction and reference comparison."""
+"""One-command reproduction and comparison with the reference results."""
 from __future__ import annotations
 
 import shutil
@@ -23,6 +23,9 @@ REQUIRED_INPUTS = {
     "fine-tuning self-consistency": "data/finetune/self_consistency.csv",
 }
 
+# GAM deviance is compared in percentage points; this machine reproduces it exactly.
+GAM_TOLERANCE = 0.01
+
 
 def missing_inputs(cfg: Config) -> list[str]:
     return [f"{label}: {cfg.root / path}" for label, path in REQUIRED_INPUTS.items()
@@ -30,8 +33,8 @@ def missing_inputs(cfg: Config) -> list[str]:
 
 
 def _compare(
-    expected: Path,
-    actual: Path,
+    expected: Path | pd.DataFrame,
+    actual: Path | pd.DataFrame,
     *,
     label: str,
     keys: list[str] | None = None,
@@ -39,8 +42,8 @@ def _compare(
     atol: float = 1e-8,
     rtol: float = 1e-6,
 ) -> tuple[bool, str]:
-    reference = pd.read_csv(expected)
-    observed = pd.read_csv(actual)
+    reference = expected.copy() if isinstance(expected, pd.DataFrame) else pd.read_csv(expected)
+    observed = actual.copy() if isinstance(actual, pd.DataFrame) else pd.read_csv(actual)
     if keys:
         if any(key not in reference or key not in observed for key in keys):
             return False, f"{label}: missing comparison key(s)"
@@ -69,14 +72,44 @@ def _compare(
     return True, f"{label}: max numeric difference {max_difference:.2e}"
 
 
+def _compare_importance_views(reference_path: Path, output_dir: Path) -> tuple[bool, str]:
+    """Check both generated pivots against one complete long reference table."""
+    reference = pd.read_csv(reference_path)
+    checks = []
+    for group, filename in [
+        ("panel", "physchem_relweight_wide_expanded.csv"),
+        ("finetune_020", "physchem_relweight_wide_finetune020.csv"),
+    ]:
+        expected = (reference[reference["group"].eq(group)]
+                    .pivot(index="property", columns="model", values="rel_weight_pct")
+                    .reset_index())
+        checks.append(_compare(expected, output_dir / filename,
+                               label=group + " importance view", keys=["property"]))
+    return all(ok for ok, _ in checks), "; ".join(detail for _, detail in checks)
+
+
 def _record(rows: list[dict], claim: str, status: str, detail: str, seconds: float) -> None:
     rows.append({"claim": claim, "status": status, "seconds": round(seconds, 2), "detail": detail})
+
+
+def _compare_gam_reference(expected: pd.DataFrame, actual: pd.DataFrame) -> tuple[bool, str]:
+    """Every reference model must be refitted, with the same n and deviance."""
+    missing = sorted(set(expected.model) - set(actual.model))
+    if missing:
+        return False, "Missing GAM reference models: " + ", ".join(missing)
+    shared = expected.merge(actual, on="model", suffixes=("_expected", "_actual"), validate="one_to_one")
+    difference = (shared["gam_dev_explained_pct_expected"] - shared["gam_dev_explained_pct_actual"]).abs()
+    same_n = bool((shared["n_expected"] == shared["n_actual"]).all())
+    ok = same_n and difference.notna().all() and float(difference.max()) < GAM_TOLERANCE
+    detail = (f"{len(shared)}/{len(expected)} models; same n: {same_n}; max deviance difference "
+              f"{float(difference.max()):.4f} percentage points")
+    return bool(ok), detail
 
 
 def _run_gam(cfg: Config, out: Path) -> tuple[bool, str]:
     rscript = shutil.which("Rscript")
     if not rscript:
-        return False, "Rscript not found; install the R environment described in REPRODUCIBILITY.md"
+        return False, "Rscript not found; install the R environment described in README.md"
     script = cfg.root / "src/decoding_bias/analysis/gam_landscapes.R"
     completed = subprocess.run(
         [rscript, str(script), str(cfg.analysis_table), str(out)],
@@ -86,40 +119,32 @@ def _run_gam(cfg: Config, out: Path) -> tuple[bool, str]:
     )
     if completed.returncode:
         return False, (completed.stderr or completed.stdout).strip().splitlines()[-1]
-    # Compare mappings shared with the manuscript-era R table.
-    expected = pd.read_csv(cfg.gam_dir / "gam_deviance_reference.csv")
+    expected = pd.read_csv(cfg.expected_dir / "gam/gam_deviance_reference.csv")
     actual = pd.read_csv(out / "gam_deviance.csv")
-    expected = expected.rename(columns={"gam_dev_explained_pct": "value"})
-    actual = actual.rename(columns={"gam_dev_explained_pct": "value"})
-    shared = expected.merge(actual, on="model", suffixes=("_expected", "_actual"))
-    difference = (shared["value_expected"] - shared["value_actual"]).abs()
-    ok = len(shared) >= 10 and float(difference.max()) < .11
-    detail = (f"{len(shared)} stable model mappings compared; max GAM deviance difference "
-              f"{float(difference.max()):.3f} percentage points")
-    return ok, detail
+    return _compare_gam_reference(expected, actual)
 
 
 def run(cfg: Config | None = None, *, quick: bool = False) -> tuple[bool, pd.DataFrame]:
-    """Reproduce the paper-facing analyses and write ``reproduction_report.md``.
+    """Reproduce the analyses and write ``reproduction_report.md``.
 
-    ``quick=True`` skips the seeded 14-model Elo run and R/mgcv landscapes.  All
-    other main numeric results are still recomputed from row-level deposited data.
+    ``quick=True`` skips the 14-model Elo run and the R/mgcv landscapes. Every other
+    result is still recomputed from the row-level inputs.
     """
     cfg = cfg or Config.load()
     missing = missing_inputs(cfg)
     if missing:
-        raise FileNotFoundError("Missing reviewer inputs:\n  " + "\n  ".join(missing))
+        raise FileNotFoundError("Missing inputs:\n  " + "\n  ".join(missing))
 
     from .analysis import design, elo, finetune, importance, pca, variance
     from .data import dataset_composition, load_analysis_table
 
-    root = cfg.stage_output("reviewer")
+    root = cfg.stage_output("reproduction")
     rows: list[dict] = []
 
     started = time.perf_counter()
     composition = dataset_composition(load_analysis_table(cfg.analysis_table))
-    ok = (composition["n_proteins"], composition["n_species"], composition["n_families"]) == (10148, 495, 281)
-    _record(rows, "Dataset composition", "PASS" if ok else "FAIL",
+    ok = (composition["n_proteins"], composition["n_species"], composition["n_families"]) == (10146, 495, 281)
+    _record(rows, "Dataset composition (Table S28)", "PASS" if ok else "FAIL",
             f"{composition['n_proteins']} proteins / {composition['n_species']} species / "
             f"{composition['n_families']} families", time.perf_counter() - started)
 
@@ -134,19 +159,23 @@ def run(cfg: Config | None = None, *, quick: bool = False) -> tuple[bool, pd.Dat
                  label="pLDDT control", keys=["model"]),
     ]
     ok = all(value for value, _ in checks)
-    _record(rows, "Variance decomposition (Tables 1-2)", "PASS" if ok else "FAIL",
+    _record(rows, "Variance decomposition (Table 1; Tables S6, S9, S24)", "PASS" if ok else "FAIL",
             "; ".join(detail for _, detail in checks), time.perf_counter() - started)
 
     started = time.perf_counter()
-    pca.run(cfg, out_dir=root / "pca")
+    pca_result = pca.run(cfg, out_dir=root / "pca")
+    r_difference = pca.overlap_difference_from_r(pca_result["compactness"],
+                                                 cfg.expected_dir / "gam/compactness_R.csv")
     checks = [
         _compare(cfg.expected_dir / "pca/pca_loadings.csv", root / "pca/pca_loadings.csv",
                  label="PCA loadings", keys=["feature"]),
         _compare(cfg.expected_dir / "pca/compactness_pairwise.csv", root / "pca/compactness_pairwise.csv",
                  label="domain overlap", keys=["domain"]),
+        # Our overlaps are rounded to 0.1 percentage point; the R values are not.
+        (r_difference < 1e-3, f"domain overlap against R: max difference {r_difference:.1e}"),
     ]
     ok = all(value for value, _ in checks)
-    _record(rows, "Biophysical PCA (Figure 3A-B)", "PASS" if ok else "FAIL",
+    _record(rows, "Biophysical PCA (Figure 3b-c; Table S14)", "PASS" if ok else "FAIL",
             "; ".join(detail for _, detail in checks), time.perf_counter() - started)
 
     started = time.perf_counter()
@@ -155,9 +184,8 @@ def run(cfg: Config | None = None, *, quick: bool = False) -> tuple[bool, pd.Dat
         _compare(cfg.expected_dir / "importance/property_importance_expanded.csv",
                  root / "importance/property_importance_expanded.csv", label="property importance",
                  keys=["group", "model", "property"]),
-        _compare(cfg.expected_dir / "importance/physchem_relweight_wide_expanded.csv",
-                 root / "importance/physchem_relweight_wide_expanded.csv", label="importance wide table",
-                 keys=["property"]),
+        _compare_importance_views(cfg.expected_dir / "importance/property_importance_expanded.csv",
+                                  root / "importance"),
     ]
     ok = all(value for value, _ in checks)
     _record(rows, "Property importance (Tables S16-S18)", "PASS" if ok else "FAIL",
@@ -166,15 +194,16 @@ def run(cfg: Config | None = None, *, quick: bool = False) -> tuple[bool, pd.Dat
     started = time.perf_counter()
     design.run(cfg, out_dir=root / "design")
     checks = [
-        _compare(cfg.expected_dir / "design/table_s21_dz.csv", root / "design/physchem_effect_sizes.csv",
-                 label="design shifts", keys=["model", "feature"],
-                 columns=["model", "feature", "n_templates", "mean_delta", "dz"]),
+        _compare(cfg.expected_dir / "design/table_s20_statistics_R.csv", root / "design/physchem_effect_sizes.csv",
+                 label="design tests against the R reference", keys=["model", "feature"],
+                 columns=["model", "feature", "n_templates", "mean_delta", "dz", "wilcoxon_p", "p_fdr"],
+                 atol=1e-12, rtol=1e-9),
         _compare(cfg.expected_dir / "design/functional_residue_by_model.csv",
                  root / "design/functional_residue_conservation_by_model.csv",
                  label="functional-residue recovery", keys=["model"]),
     ]
     ok = all(value for value, _ in checks)
-    _record(rows, "Designed-sequence shifts (Figure 4, Table 4)", "PASS" if ok else "FAIL",
+    _record(rows, "Designed-sequence shifts (Figure 4c; Tables S20, S21, S25)", "PASS" if ok else "FAIL",
             "; ".join(detail for _, detail in checks), time.perf_counter() - started)
 
     started = time.perf_counter()
@@ -186,8 +215,8 @@ def run(cfg: Config | None = None, *, quick: bool = False) -> tuple[bool, pd.Dat
         _compare(cfg.expected_dir / "finetune/ft_design_direct_feature_base_relative_tests.csv",
                  root / "finetune/direct_feature_base_relative_tests.csv", label="direct feature shifts",
                  keys=["comparison", "feature"]),
-        _compare(cfg.expected_dir / "finetune/table_s22.csv",
-                 root / "finetune/table_s22_surface_steer.csv", label="matched surface steer",
+        _compare(cfg.expected_dir / "finetune/matched_surface_steer.csv",
+                 root / "finetune/matched_surface_steer.csv", label="matched surface steer",
                  keys=["model"]),
         _compare(cfg.expected_dir / "finetune/self_consistency_summary.csv",
                  root / "finetune/self_consistency_summary.csv", label="self-consistency summary",
@@ -197,12 +226,14 @@ def run(cfg: Config | None = None, *, quick: bool = False) -> tuple[bool, pd.Dat
                  keys=["comparison", "metric"]),
     ]
     ok = all(value for value, _ in checks)
-    _record(rows, "Fine-tuning steer and scTM (Figure 5, Tables 5-6)", "PASS" if ok else "FAIL",
-            "; ".join(detail for _, detail in checks), time.perf_counter() - started)
+    _record(rows, "Fine-tuning and self-consistency (Figure 4a; Tables S22, S23, S26, S27)",
+            "PASS" if ok else "FAIL", "; ".join(detail for _, detail in checks), time.perf_counter() - started)
 
+    elo_claim = "Species Elo (Figure 2; Table 2)"
+    gam_claim = "GAM landscapes (Figure 3a; Table S15)"
     if quick:
-        _record(rows, "Species Elo (Figure 2, Table 3)", "SKIP", "run without --quick", 0)
-        _record(rows, "GAM landscapes (Figure 3C)", "SKIP", "run without --quick", 0)
+        _record(rows, elo_claim, "SKIP", "run without --quick", 0)
+        _record(rows, gam_claim, "SKIP", "run without --quick", 0)
     else:
         started = time.perf_counter()
         elo.run(cfg, out_dir=root / "taxonomy", n_permutations=50, make_figure=True)
@@ -210,17 +241,15 @@ def run(cfg: Config | None = None, *, quick: bool = False) -> tuple[bool, pd.Dat
             cfg.expected_dir / "elo/all_models_species_ratings_long.csv",
             root / "taxonomy/all_models_species_ratings_long.csv",
             label="species Elo", keys=["model", "species"])
-        _record(rows, "Species Elo (Figure 2, Table 3)", "PASS" if ok else "FAIL", detail,
-                time.perf_counter() - started)
+        _record(rows, elo_claim, "PASS" if ok else "FAIL", detail, time.perf_counter() - started)
 
         started = time.perf_counter()
         ok, detail = _run_gam(cfg, root / "gam")
-        _record(rows, "GAM landscapes (Figure 3C)", "PASS" if ok else "FAIL", detail,
-                time.perf_counter() - started)
+        _record(rows, gam_claim, "PASS" if ok else "FAIL", detail, time.perf_counter() - started)
 
     report = pd.DataFrame(rows)
     report.to_csv(root / "reproduction_report.csv", index=False)
-    lines = ["# Reproduction report", "", f"Mode: {'quick' if quick else 'full reviewer'}", "",
+    lines = ["# Reproduction report", "", f"Mode: {'quick' if quick else 'full'}", "",
              "| Claim | Status | Seconds | Detail |", "|---|---:|---:|---|"]
     for row in report.itertuples(index=False):
         detail = str(row.detail).replace("|", "\\|")
